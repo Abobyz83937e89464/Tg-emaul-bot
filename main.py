@@ -41,13 +41,22 @@ async def create_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user = db.get_user(user_id)
     
-    if user and user.get('last_email_created'):
+    if not user:
+        db.insert_user(user_id)
+        user = db.get_user(user_id)
+    
+    # Проверяем CD
+    if user.get('last_email_created'):
         last_created = datetime.fromisoformat(user['last_email_created'].replace('Z', '+00:00'))
-        if datetime.now().astimezone() - last_created < timedelta(hours=2):
-            await update.message.reply_text("❌ CD не прошел. Ждите 2 часа.")
+        time_diff = datetime.now().astimezone() - last_created
+        if time_diff.total_seconds() < 7200:
+            remaining = 7200 - int(time_diff.total_seconds())
+            hours = remaining // 3600
+            minutes = (remaining % 3600) // 60
+            await update.message.reply_text(f"❌ CD не прошел. Ждите еще {hours}ч {minutes}м.")
             return
     
-    await update.message.reply_text("🔄 Начинаю регистрацию Outlook...")
+    await update.message.reply_text("🔄 Начинаю реальную регистрацию Outlook...")
     
     try:
         result = await create_outlook_email()
@@ -56,10 +65,13 @@ async def create_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
             db.update_user_last_email(user_id)
             
             await update.message.reply_text(
-                f"✅ Почта создана!\n\nEmail: {result['email']}\n\nВсе письма будут приходить сюда"
+                f"✅ Реальная почта создана!\n\n"
+                f"Email: {result['email']}\n"
+                f"Password: {result['password']}\n\n"
+                f"Следующая регистрация через 2 часа"
             )
         else:
-            await update.message.reply_text("❌ Ошибка при регистрации")
+            await update.message.reply_text(f"❌ Ошибка: {result.get('error')}")
     except Exception as e:
         await update.message.reply_text(f"❌ Ошибка: {str(e)}")
 

@@ -4,10 +4,7 @@ services:
     env: python
     plan: free
     branch: main
-    buildCommand: |
-      pip install --upgrade pip
-      pip install setuptools wheel
-      pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     envVars:
       - key: PYTHON_VERSION

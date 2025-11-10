@@ -1,5 +1,7 @@
-from fastapi import FastAPI
-from telegram import Update
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from telegram import Update, WebAppInfo, ReplyKeyboardMarkup, KeyboardButton, BotCommand
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
 import os
 from supabase import create_client, Client
@@ -30,6 +32,13 @@ EMAIL_SERVICES = {
     'protonmail': create_protonmail_email
 }
 
+async def set_commands():
+    commands = [
+        BotCommand("start", "Запустить бота"),
+        BotCommand("create_email", "Создать почту"),
+    ]
+    await bot_app.bot.set_my_commands(commands)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
@@ -39,15 +48,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'created_at': 'now()'
     }).execute()
     
+    # Создаем кнопку Web App (URL заменишь после деплоя)
+    web_app_button = KeyboardButton(
+        text="📱 Открыть приложение",
+        web_app=WebAppInfo(url="https://your-app.railway.app/webapp")
+    )
+    
+    reply_markup = ReplyKeyboardMarkup([[web_app_button]], resize_keyboard=True)
+    
     await update.message.reply_text(
         f"🤖 Бот для регистрации почт\n\n"
-        f"Используйте /create_email для создания почты\n"
-        f"CD: 2 часа между регистрациями\n\n"
-        f"Доступные сервисы:\n"
-        f"• Outlook.com (без номера)\n"  
-        f"• Yahoo Mail (без номера)\n"
-        f"• Mail.com (без номера)\n"
-        f"• ProtonMail (без номера)"
+        f"Нажми кнопку ниже чтобы открыть приложение\n"
+        f"Или используй /create_email для быстрого создания",
+        reply_markup=reply_markup
     )
 
 async def create_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -102,15 +115,36 @@ async def create_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Ошибка при регистрации: {str(e)}")
 
+# Web App эндпоинты
+@app.get("/webapp")
+async def webapp():
+    return FileResponse("static/index.html")
+
+@app.post("/create_email")
+async def web_create_email(request: Request):
+    data = await request.json()
+    service = data.get('service')
+    
+    # Заглушка для теста
+    return {
+        "success": True, 
+        "email": f"test{random.randint(1000,9999)}@{service}.com", 
+        "password": "test123456"
+    }
+
 # Регистрируем обработчики
 bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(CommandHandler("create_email", create_email))
+
+# Статические файлы
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.on_event("startup")
 async def startup_event():
     await bot_app.initialize()
     await bot_app.start()
     await bot_app.updater.start_polling()
+    await set_commands()
 
 @app.on_event("shutdown") 
 async def shutdown_event():

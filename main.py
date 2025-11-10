@@ -28,7 +28,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     web_app_button = KeyboardButton(
         text="📱 Открыть приложение",
-        web_app=WebAppInfo(url="https://tg-emaul-bot.onrender.com/webapp")
+        web_app=WebAppInfo(url="https://tg-emaul-bot-11.onrender.com/webapp")
     )
     reply_markup = ReplyKeyboardMarkup([[web_app_button]], resize_keyboard=True)
     

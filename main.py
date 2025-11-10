@@ -4,7 +4,6 @@ from fastapi.responses import FileResponse
 from telegram import Update, WebAppInfo, ReplyKeyboardMarkup, KeyboardButton, BotCommand
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import asyncio
-import random
 from datetime import datetime, timedelta
 from config import BOT_TOKEN
 from database.db import Database
@@ -15,8 +14,6 @@ db = Database()
 app = FastAPI()
 bot_app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-EMAIL_SERVICES = {'outlook': create_outlook_email}
-
 async def set_commands():
     commands = [
         BotCommand("start", "Запустить бота"),
@@ -26,8 +23,7 @@ async def set_commands():
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    user = db.get_user(user_id)
-    if not user:
+    if not db.get_user(user_id):
         db.insert_user(user_id)
     
     web_app_button = KeyboardButton(
@@ -37,7 +33,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = ReplyKeyboardMarkup([[web_app_button]], resize_keyboard=True)
     
     await update.message.reply_text(
-        "🤖 Бот для регистрации почт\n\nНажми кнопку ниже или используй /create_email\nВсе письма будут приходить сюда",
+        "🤖 Бот для регистрации почт\n\nНажми кнопку ниже или используй /create_email",
         reply_markup=reply_markup
     )
 
@@ -51,22 +47,21 @@ async def create_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ CD не прошел. Ждите 2 часа.")
             return
     
-    service = 'outlook'
-    await update.message.reply_text(f"🔄 Начинаю регистрацию {service}...")
+    await update.message.reply_text("🔄 Начинаю регистрацию Outlook...")
     
     try:
         result = await create_outlook_email()
         if result['status'] == 'success':
-            db.insert_email(user['id'], result['email'], service)
+            db.insert_email(user['id'], result['email'], 'outlook')
             db.update_user_last_email(user_id)
             
             await update.message.reply_text(
-                f"✅ Почта создана!\n\nEmail: {result['email']}\n\nВсе письма будут приходить сюда\nСледующая регистрация через 2 часа"
+                f"✅ Почта создана!\n\nEmail: {result['email']}\n\nВсе письма будут приходить сюда"
             )
         else:
-            await update.message.reply_text(f"❌ Ошибка: {result.get('error', 'Unknown error')}")
+            await update.message.reply_text("❌ Ошибка при регистрации")
     except Exception as e:
-        await update.message.reply_text(f"❌ Ошибка при регистрации: {str(e)}")
+        await update.message.reply_text(f"❌ Ошибка: {str(e)}")
 
 @app.get("/webapp")
 async def webapp():

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Email Bot</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { font-family: Arial; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 400px; margin: 0 auto; }
+        .card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 15px; }
+        .btn { background: #2481cc; color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-size: 16px; }
+        .btn:disabled { background: #ccc; }
+        .service { padding: 10px; border: 1px solid #ddd; margin: 5px 0; border-radius: 6px; cursor: pointer; }
+        .service.selected { border-color: #2481cc; background: #f0f8ff; }
+        .cd-timer { color: #ff6b6b; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h3>📧 Создать почту</h3>
+            <div id="services">
+                <div class="service" data-service="outlook">Outlook.com (без номера)</div>
+                <div class="service" data-service="yahoo">Yahoo Mail (без номера)</div>
+                <div class="service" data-service="mailcom">Mail.com (без номера)</div>
+                <div class="service" data-service="protonmail">ProtonMail (без номера)</div>
+            </div>
+            <button class="btn" id="createBtn" onclick="createEmail()">Создать почту</button>
+            <div id="timer" class="cd-timer" style="display:none;">CD: 2:00:00</div>
+        </div>
+        
+        <div class="card" id="result" style="display:none;">
+            <h3>✅ Почта создана</h3>
+            <div id="emailResult"></div>
+        </div>
+    </div>
+
+    <script>
+        let selectedService = null;
+        
+        // Выбор сервиса
+        document.querySelectorAll('.service').forEach(el => {
+            el.addEventListener('click', () => {
+                document.querySelectorAll('.service').forEach(s => s.classList.remove('selected'));
+                el.classList.add('selected');
+                selectedService = el.dataset.service;
+            });
+        });
+
+        async function createEmail() {
+            if (!selectedService) return alert('Выберите сервис');
+            
+            const btn = document.getElementById('createBtn');
+            btn.disabled = true;
+            btn.textContent = 'Регистрируем...';
+            
+            try {
+                const response = await fetch('/create_email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ service: selectedService })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('emailResult').innerHTML = `
+                        <strong>Email:</strong> ${result.email}<br>
+                        <strong>Password:</strong> ${result.password}
+                    `;
+                    document.getElementById('result').style.display = 'block';
+                    startTimer();
+                } else {
+                    alert('Ошибка: ' + result.error);
+                }
+            } catch (error) {
+                alert('Ошибка соединения');
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Создать почту';
+        }
+
+        function startTimer() {
+            let time = 7200; // 2 часа в секундах
+            const timerEl = document.getElementById('timer');
+            timerEl.style.display = 'block';
+            
+            const interval = setInterval(() => {
+                const hours = Math.floor(time / 3600);
+                const minutes = Math.floor((time % 3600) / 60);
+                const seconds = time % 60;
+                
+                timerEl.textContent = `CD: ${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                
+                if (time-- <= 0) {
+                    clearInterval(interval);
+                    timerEl.style.display = 'none';
+                }
+            }, 1000);
+        }
+
+        // Инициализация Telegram Web App
+        Telegram.WebApp.ready();
+        Telegram.WebApp.expand();
+    </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: tg-email-bot
+    name: tg-emaul-bot
     env: python
     plan: free
     branch: main

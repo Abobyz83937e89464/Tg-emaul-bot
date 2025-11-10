@@ -1,4 +1,5 @@
 import requests
+import json
 from config import SUPABASE_URL, SUPABASE_KEY
 
 class Database:
@@ -12,39 +13,27 @@ class Database:
         }
     
     def insert_user(self, telegram_id):
-        data = {
-            'telegram_id': telegram_id,
-            'created_at': 'now()'
-        }
+        data = {'telegram_id': telegram_id}
         response = requests.post(f"{self.url}/rest/v1/users", json=data, headers=self.headers)
-        return response.json() if response.status_code == 200 else None
+        return response.status_code == 201
     
     def get_user(self, telegram_id):
-        response = requests.get(
-            f"{self.url}/rest/v1/users?telegram_id=eq.{telegram_id}",
-            headers=self.headers
-        )
-        return response.json()[0] if response.status_code == 200 and response.json() else None
+        response = requests.get(f"{self.url}/rest/v1/users?telegram_id=eq.{telegram_id}", headers=self.headers)
+        if response.status_code == 200:
+            data = response.json()
+            return data[0] if data else None
+        return None
     
     def update_user_last_email(self, telegram_id):
-        data = {
-            'last_email_created': 'now()'
-        }
-        response = requests.patch(
-            f"{self.url}/rest/v1/users?telegram_id=eq.{telegram_id}",
-            json=data,
-            headers=self.headers
-        )
+        from datetime import datetime
+        data = {'last_email_created': datetime.now().isoformat()}
+        response = requests.patch(f"{self.url}/rest/v1/users?telegram_id=eq.{telegram_id}", json=data, headers=self.headers)
         return response.status_code == 200
     
     def insert_email(self, user_id, email, service):
-        data = {
-            'user_id': user_id,
-            'email': email,
-            'email_service': service
-        }
+        data = {'user_id': user_id, 'email': email, 'email_service': service}
         response = requests.post(f"{self.url}/rest/v1/email_accounts", json=data, headers=self.headers)
-        return response.status_code == 200
+        return response.status_code == 201
     
     def get_all_emails(self):
         response = requests.get(f"{self.url}/rest/v1/email_accounts", headers=self.headers)
@@ -52,4 +41,7 @@ class Database:
     
     def get_user_by_id(self, user_id):
         response = requests.get(f"{self.url}/rest/v1/users?id=eq.{user_id}", headers=self.headers)
-        return response.json()[0] if response.status_code == 200 and response.json() else None
+        if response.status_code == 200:
+            data = response.json()
+            return data[0] if data else None
+        return None

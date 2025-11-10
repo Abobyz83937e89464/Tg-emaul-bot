@@ -2,20 +2,20 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from telegram import Update, WebAppInfo, ReplyKeyboardMarkup, KeyboardButton, BotCommand
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
-import os
-from supabase import create_client, Client
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import asyncio
 import random
 from datetime import datetime, timedelta
 from config import SUPABASE_URL, SUPABASE_KEY, BOT_TOKEN
+from supabase import create_client
+from sms_monitor import monitor_all_emails
 
 from email_services.outlook import create_outlook_email
 from email_services.yahoo import create_yahoo_email
 from email_services.mailcom import create_mailcom_email
 from email_services.protonmail import create_protonmail_email
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = FastAPI()
 bot_app = ApplicationBuilder().token(BOT_TOKEN).build()
 
@@ -43,7 +43,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     reply_markup = ReplyKeyboardMarkup([[web_app_button]], resize_keyboard=True)
     
-    await update.message.reply_text("🤖 Бот для регистрации почт\n\nНажми кнопку ниже или используй /create_email", reply_markup=reply_markup)
+    await update.message.reply_text(
+        "🤖 Бот для регистрации почт\n\n"
+        "Нажми кнопку ниже или используй /create_email\n"
+        "Все SMS с почт будут приходить сюда",
+        reply_markup=reply_markup
+    )
 
 async def create_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -57,8 +62,7 @@ async def create_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("❌ CD не прошел. Ждите 2 часа.")
                 return
     
-    service_keys = list(EMAIL_SERVICES.keys())
-    service = random.choice(service_keys)
+    service = 'outlook'
     await update.message.reply_text(f"🔄 Начинаю регистрацию {service}...")
     
     try:
@@ -67,13 +71,17 @@ async def create_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
             email_data = {
                 'user_id': user['id'],
                 'email_service': service,
-                'email': result['email'],
-                'password': result['password']
+                'email': result['email']
             }
             supabase.table('email_accounts').insert(email_data).execute()
             supabase.table('users').update({'last_email_created': datetime.now().isoformat()}).eq('telegram_id', user_id).execute()
             
-            await update.message.reply_text(f"✅ Почта создана!\n\nСервис: {service}\nEmail: {result['email']}\nPassword: {result['password']}\n\nСледующая регистрация через 2 часа")
+            await update.message.reply_text(
+                f"✅ Почта создана!\n\n"
+                f"Email: {result['email']}\n\n"
+                f"Все SMS с этой почты будут приходить сюда\n"
+                f"Следующая регистрация через 2 часа"
+            )
         else:
             await update.message.reply_text(f"❌ Ошибка: {result.get('error', 'Unknown error')}")
     except Exception as e:
@@ -85,9 +93,7 @@ async def webapp():
 
 @app.post("/create_email")
 async def web_create_email(request: Request):
-    data = await request.json()
-    service = data.get('service')
-    return {"success": True, "email": f"test{random.randint(1000,9999)}@{service}.com", "password": "test123456"}
+    return {"success": True, "email": "test@outlook.com"}
 
 bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(CommandHandler("create_email", create_email))
@@ -99,6 +105,7 @@ async def startup_event():
     await bot_app.start()
     await bot_app.updater.start_polling()
     await set_commands()
+    asyncio.create_task(monitor_all_emails())
 
 @app.on_event("shutdown") 
 async def shutdown_event():
